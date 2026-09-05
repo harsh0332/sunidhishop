@@ -89,9 +89,10 @@ function detectStore(urlStr: string): string {
   if (lower.includes('myntra') || lower.includes('myntr.it')) return 'Myntra';
   if (lower.includes('zara')) return 'Zara';
   if (lower.includes('amazon') || lower.includes('amzn.to')) return 'Amazon';
+  if (lower.includes('nykaafashion')) return 'Nykaa Fashion';
   if (lower.includes('nykaa')) return 'Nykaa';
   if (lower.includes('mango')) return 'Mango';
-  if (lower.includes('ajio')) return 'Ajio';
+  if (lower.includes('ajio') || lower.includes('ajiio.in')) return 'Ajio';
   if (lower.includes('h&m') || lower.includes('hm.com')) return 'H&M';
   if (lower.includes('meesho')) return 'Meesho';
   if (lower.includes('sephora')) return 'Sephora';
@@ -150,7 +151,7 @@ function detectCategory(text: string): ProductCategory {
 }
 
 const KNOWN_BRANDS = [
-  'Tommy Hilfiger', 'Calvin Klein', 'Polo Ralph Lauren', 'Ralph Lauren',
+  'Purys', "Pury's", 'Tommy Hilfiger', 'Calvin Klein', 'Polo Ralph Lauren', 'Ralph Lauren',
   'Marks & Spencer', 'Vero Moda', 'Jack & Jones', 'Under Armour', 'Louis Philippe',
   'Van Heusen', 'Peter England', 'Allen Solly', 'Tokyo Talkies', 'Global Desi',
   'Fabindia', 'Zara', 'H&M', 'Mango', 'Levis', "Levi's", 'Nike', 'Adidas',
@@ -225,11 +226,22 @@ function parseProductFromUrl(
     const urlObj = new URL(resolvedUrl);
     const pathParts = urlObj.pathname.split('/').filter(Boolean);
 
-    // Look for product slug segment (e.g. /tommy-hilfiger-women-striped-relaxed-fit-shirt/p/703093754_green)
+    // Look for product slug segment: find parts with hyphens that are not the single letter 'p' or numeric IDs
     const candidate = pathParts.find(
-      (p) => p.includes('-') && !p.startsWith('p') && p.length > 5 && !p.endsWith('.html')
+      (p) =>
+        p.includes('-') &&
+        p.toLowerCase() !== 'p' &&
+        !/^\d+$/.test(p) &&
+        p.length > 3 &&
+        !p.endsWith('.html')
     );
-    slug = candidate || pathParts[pathParts.length - 1] || pathParts[0] || 'Curated Product';
+
+    // If no hyphenated part found, find the first meaningful non-numeric text part
+    const nonNumericPart = pathParts.find(
+      (p) => p.toLowerCase() !== 'p' && !/^\d+$/.test(p) && p.length > 3
+    );
+
+    slug = candidate || nonNumericPart || pathParts[0] || 'Curated Product';
   } catch {
     slug = 'Curated Product';
   }

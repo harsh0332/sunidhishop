@@ -43,7 +43,7 @@ export async function PATCH(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { id, affiliateUrl, price, originalPrice, title } = body;
+    const { id, affiliateUrl, price, originalPrice, title, image } = body;
 
     if (!id) {
       return NextResponse.json({ error: 'Product ID is required' }, { status: 400 });
@@ -54,6 +54,7 @@ export async function PATCH(request: NextRequest) {
       ...(price !== undefined ? { price: Number(price) } : {}),
       ...(originalPrice !== undefined ? { originalPrice: Number(originalPrice) } : {}),
       ...(title ? { title: String(title).trim() } : {}),
+      ...(image ? { image: String(image).trim() } : {}),
     });
 
     return NextResponse.json({ success: true, message: 'Product updated successfully' });

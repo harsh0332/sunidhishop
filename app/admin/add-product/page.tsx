@@ -19,6 +19,9 @@ import {
   ArrowLeft,
   ShoppingBag,
   Image as ImageIcon,
+  Upload,
+  Camera,
+  ClipboardPaste,
 } from 'lucide-react';
 import { ProductCategory } from '@/types/product';
 
@@ -85,6 +88,13 @@ export default function QuickAddProductPage() {
 
   const [hasExtracted, setHasExtracted] = useState(false);
 
+  // Image Upload & Paste States
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const editFileInputRef = React.useRef<HTMLInputElement>(null);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const [imageUploadMsg, setImageUploadMsg] = useState<string | null>(null);
+
   // Manage Tab States
   const [products, setProducts] = useState<ManagedProduct[]>([]);
   const [isLoadingProducts, setIsLoadingProducts] = useState(false);
@@ -93,6 +103,8 @@ export default function QuickAddProductPage() {
   const [editPrice, setEditPrice] = useState('');
   const [editLink, setEditLink] = useState('');
   const [editTitle, setEditTitle] = useState('');
+  const [editImage, setEditImage] = useState('');
+  const [isUploadingEditImage, setIsUploadingEditImage] = useState(false);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [sheetNotice, setSheetNotice] = useState<string | null>(null);
@@ -214,11 +226,103 @@ export default function QuickAddProductPage() {
     });
   };
 
+  const uploadImageFile = async (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      alert('Please select an image file (JPG, PNG, WEBP).');
+      return;
+    }
+    setIsUploadingImage(true);
+    setImageUploadMsg('Uploading photo...');
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch('/api/admin/upload-image', {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Upload failed');
+      setForm((prev) => ({ ...prev, image: data.url }));
+      setImageUploadMsg('Photo uploaded successfully! ✅');
+      setTimeout(() => setImageUploadMsg(null), 3000);
+    } catch (err: any) {
+      alert(err.message || 'Image upload failed. Please try again.');
+      setImageUploadMsg(null);
+    } finally {
+      setIsUploadingImage(false);
+    }
+  };
+
+  const uploadEditImageFile = async (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      alert('Please select an image file (JPG, PNG, WEBP).');
+      return;
+    }
+    setIsUploadingEditImage(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch('/api/admin/upload-image', {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Upload failed');
+      setEditImage(data.url);
+    } catch (err: any) {
+      alert(err.message || 'Image upload failed. Please try again.');
+    } finally {
+      setIsUploadingEditImage(false);
+    }
+  };
+
+  const handlePasteFromClipboard = async () => {
+    try {
+      if (navigator.clipboard?.read) {
+        const items = await navigator.clipboard.read();
+        for (const item of items) {
+          for (const type of item.types) {
+            if (type.startsWith('image/')) {
+              const blob = await item.getType(type);
+              const file = new File([blob], `clipboard_${Date.now()}.png`, { type });
+              await uploadImageFile(file);
+              return;
+            }
+          }
+        }
+      }
+      alert('Clipboard mein image nahi mili! Pehle screenshot/photo copy karein, ya upar "Choose Photo" dabayein.');
+    } catch {
+      alert('Photo paste karne ke liye keyboard se Ctrl+V (ya Mac par Cmd+V) dabayein.');
+    }
+  };
+
+  // Global Ctrl+V / Cmd+V paste listener for Quick Add form
+  useEffect(() => {
+    const handleGlobalPaste = (e: ClipboardEvent) => {
+      if (activeTab !== 'add' || !hasExtracted) return;
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.startsWith('image/')) {
+          const file = items[i].getAsFile();
+          if (file) {
+            uploadImageFile(file);
+            break;
+          }
+        }
+      }
+    };
+    window.addEventListener('paste', handleGlobalPaste);
+    return () => window.removeEventListener('paste', handleGlobalPaste);
+  }, [activeTab, hasExtracted]);
+
   const startEdit = (p: ManagedProduct) => {
     setEditingProduct(p);
     setEditPrice(String(p.price));
     setEditLink(p.affiliateUrl);
     setEditTitle(p.title);
+    setEditImage(p.image || '');
   };
 
   const handleSaveEdit = async () => {
@@ -234,6 +338,7 @@ export default function QuickAddProductPage() {
           title: editTitle,
           price: Number(editPrice),
           affiliateUrl: editLink,
+          image: editImage,
         }),
       });
 
@@ -472,29 +577,139 @@ export default function QuickAddProductPage() {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   {/* Product Photo Preview Column */}
                   <div className="md:col-span-1 space-y-3">
-                    <label className="block text-xs font-semibold uppercase tracking-wider text-neutral-700">
-                      Product Image
-                    </label>
-                    <div className="w-full aspect-[3/4] rounded-xl bg-stone-100 border border-stone-200 overflow-hidden relative flex items-center justify-center">
-                      {form.image ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={form.image}
-                          alt={form.title || 'Product Preview'}
-                          className="w-full h-full object-cover"
-                        />
+                    <div className="flex items-center justify-between">
+                      <label className="block text-xs font-semibold uppercase tracking-wider text-neutral-700">
+                        Product Photo *
+                      </label>
+                      {imageUploadMsg && (
+                        <span className="text-[10px] text-emerald-600 font-medium">
+                          {imageUploadMsg}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Hidden file input */}
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) uploadImageFile(file);
+                        e.target.value = '';
+                      }}
+                    />
+
+                    {/* Dropzone & Preview Box */}
+                    <div
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        setIsDragOver(true);
+                      }}
+                      onDragLeave={() => setIsDragOver(false)}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        setIsDragOver(false);
+                        const file = e.dataTransfer.files?.[0];
+                        if (file) uploadImageFile(file);
+                      }}
+                      onClick={() => {
+                        if (!form.image && !isUploadingImage) {
+                          fileInputRef.current?.click();
+                        }
+                      }}
+                      className={`w-full aspect-[3/4] rounded-2xl border-2 transition-all relative flex flex-col items-center justify-center overflow-hidden ${
+                        isDragOver
+                          ? 'border-neutral-900 bg-neutral-100 scale-[1.01]'
+                          : form.image
+                          ? 'border-stone-200 bg-stone-100'
+                          : 'border-dashed border-stone-300 bg-[#FAF8F5] hover:border-stone-400 hover:bg-stone-50 cursor-pointer'
+                      }`}
+                    >
+                      {isUploadingImage ? (
+                        <div className="p-4 text-center">
+                          <Loader2 className="w-8 h-8 animate-spin text-neutral-900 mx-auto mb-2" />
+                          <span className="text-xs font-semibold text-neutral-700">Uploading photo...</span>
+                        </div>
+                      ) : form.image ? (
+                        <>
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={form.image}
+                            alt={form.title || 'Product Preview'}
+                            className="w-full h-full object-cover"
+                          />
+                          <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-3 flex items-center justify-between">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                fileInputRef.current?.click();
+                              }}
+                              className="px-2.5 py-1 rounded-lg bg-white/95 backdrop-blur-xs text-neutral-900 text-[11px] font-semibold hover:bg-white shadow-xs flex items-center gap-1"
+                            >
+                              <Camera className="w-3 h-3" />
+                              <span>Change</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setForm((prev) => ({ ...prev, image: '' }));
+                              }}
+                              className="px-2.5 py-1 rounded-lg bg-rose-600/90 text-white text-[11px] font-medium hover:bg-rose-600 shadow-xs"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        </>
                       ) : (
-                        <div className="text-center p-4 text-neutral-400">
-                          <ImageIcon className="w-8 h-8 mx-auto mb-1 opacity-50" />
-                          <span className="text-xs">Paste Image URL below</span>
+                        <div className="p-4 text-center">
+                          <div className="w-12 h-12 rounded-full bg-stone-200/80 flex items-center justify-center mx-auto mb-2.5 text-neutral-700">
+                            <Upload className="w-5 h-5" />
+                          </div>
+                          <p className="text-xs font-semibold text-neutral-800">
+                            Upload Photo from Device / Gallery
+                          </p>
+                          <p className="text-[11px] text-neutral-400 mt-1">
+                            Click karke photo select karein ya yahan drag karein
+                          </p>
+                          <div className="mt-2.5 inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-stone-200/60 text-[10px] font-mono text-neutral-600">
+                            <span>or press Ctrl+V / Cmd+V to paste</span>
+                          </div>
                         </div>
                       )}
                     </div>
 
-                    <div>
+                    {/* Quick Buttons for Phone and Laptop */}
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        disabled={isUploadingImage}
+                        onClick={() => fileInputRef.current?.click()}
+                        className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-neutral-900 text-white text-xs font-semibold hover:bg-neutral-800 disabled:opacity-50 transition-colors shadow-xs"
+                      >
+                        <Upload className="w-3.5 h-3.5" />
+                        <span>Choose Photo</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        disabled={isUploadingImage}
+                        onClick={handlePasteFromClipboard}
+                        className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-stone-300 bg-white text-neutral-800 text-xs font-semibold hover:bg-stone-50 disabled:opacity-50 transition-colors shadow-xs"
+                      >
+                        <ClipboardPaste className="w-3.5 h-3.5" />
+                        <span>Paste Image</span>
+                      </button>
+                    </div>
+
+                    {/* Image URL fallback */}
+                    <div className="pt-2 border-t border-stone-200/80">
                       <div className="flex items-center justify-between mb-1">
                         <label className="block text-[11px] font-medium text-neutral-600">
-                          Image Link (HTTPS)
+                          Or Image Link (HTTPS)
                         </label>
                         {form.affiliateUrl && (
                           <a
@@ -511,12 +726,12 @@ export default function QuickAddProductPage() {
                         type="url"
                         value={form.image}
                         onChange={(e) => setForm({ ...form, image: e.target.value })}
-                        placeholder="https://..."
-                        className="w-full text-xs bg-[#FAF8F5] border border-stone-200 rounded-lg p-2.5 text-neutral-800 font-mono"
+                        placeholder="https://... or uploaded image path"
+                        className="w-full text-xs bg-[#FAF8F5] border border-stone-200 rounded-lg p-2 text-neutral-800 font-mono"
                       />
-                      {!form.image && (
-                        <p className="text-[10px] text-neutral-500 mt-1.5 leading-relaxed bg-stone-50 border border-stone-200/80 rounded-lg p-2">
-                          💡 <strong>Tip for {form.store || 'Store'}</strong>: Photo auto-load na hone par store page par photo pe Right-Click karke <strong>&apos;Copy Image Address&apos;</strong> karein aur yahan paste kar dein!
+                      {!form.image && (form.store === 'Ajio' || form.store === 'Nykaa Fashion' || form.store === 'Nykaa') && (
+                        <p className="text-[10px] text-amber-800 bg-amber-50 border border-amber-200/80 rounded-lg p-2.5 mt-2 leading-relaxed">
+                          🛡️ <strong>{form.store} Notice</strong>: {form.store} direct photo downloads block karta hai. Kripya upar <strong>&apos;Choose Photo&apos;</strong> se photo select karein ya screenshot copy karke <strong>&apos;Paste Image&apos;</strong> dabayein!
                         </p>
                       )}
                     </div>
@@ -836,6 +1051,55 @@ export default function QuickAddProductPage() {
                     onChange={(e) => setEditTitle(e.target.value)}
                     className="w-full text-sm bg-[#FAF8F5] border border-stone-200 rounded-xl p-3 text-neutral-900"
                   />
+                </div>
+
+                <div>
+                  <label className="block font-semibold uppercase tracking-wider text-neutral-700 mb-1">
+                    Product Photo
+                  </label>
+                  <div className="flex items-center gap-3">
+                    <div className="w-14 h-18 rounded-xl bg-stone-100 border border-stone-200 overflow-hidden shrink-0 flex items-center justify-center">
+                      {editImage ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={editImage} alt="" className="w-full h-full object-cover" />
+                      ) : (
+                        <ImageIcon className="w-5 h-5 text-neutral-400" />
+                      )}
+                    </div>
+                    <div className="flex-1 space-y-2">
+                      <input
+                        type="file"
+                        ref={editFileInputRef}
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) uploadEditImageFile(file);
+                          e.target.value = '';
+                        }}
+                      />
+                      <input
+                        type="url"
+                        value={editImage}
+                        onChange={(e) => setEditImage(e.target.value)}
+                        placeholder="https://... or uploaded image path"
+                        className="w-full text-xs bg-[#FAF8F5] border border-stone-200 rounded-lg p-2 text-neutral-900 font-mono"
+                      />
+                      <button
+                        type="button"
+                        disabled={isUploadingEditImage}
+                        onClick={() => editFileInputRef.current?.click()}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-stone-200 bg-white text-[11px] font-semibold text-neutral-800 hover:bg-stone-50"
+                      >
+                        {isUploadingEditImage ? (
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                        ) : (
+                          <Upload className="w-3 h-3" />
+                        )}
+                        <span>Upload New Photo</span>
+                      </button>
+                    </div>
+                  </div>
                 </div>
 
                 <div>

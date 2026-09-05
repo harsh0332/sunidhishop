@@ -215,12 +215,6 @@ export default function QuickAddProductPage() {
   };
 
   const startEdit = (p: ManagedProduct) => {
-    if (!p.isCustom) {
-      setSheetNotice(
-        `"${p.title}" Google Sheet se manage hota hai. Iska link ya price change karne ke liye apni Google Sheet me row edit karein.`
-      );
-      return;
-    }
     setEditingProduct(p);
     setEditPrice(String(p.price));
     setEditLink(p.affiliateUrl);
@@ -258,13 +252,6 @@ export default function QuickAddProductPage() {
   };
 
   const handleDelete = async (p: ManagedProduct) => {
-    if (!p.isCustom) {
-      setSheetNotice(
-        `"${p.title}" Google Sheet se manage hota hai. Isko hatane ke liye Google Sheet me us row ke "status" column me "archived" likh dein.`
-      );
-      return;
-    }
-
     if (!confirm(`Are you sure you want to delete "${p.title}" from the website?`)) {
       return;
     }

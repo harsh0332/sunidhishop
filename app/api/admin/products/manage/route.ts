@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getCustomProducts, updateCustomProduct, deleteCustomProduct } from '@/lib/data/custom-products-store';
+import { getCustomProducts } from '@/lib/data/custom-products-store';
+import { removeProductAny, updateProductAny } from '@/lib/data/product-overrides';
 import { GoogleSheetsProductProvider } from '@/lib/data/google-sheets-provider';
 import { verifyAdminToken, ADMIN_COOKIE_NAME } from '@/lib/analytics/auth';
 
@@ -48,24 +49,14 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Product ID is required' }, { status: 400 });
     }
 
-    const updated = updateCustomProduct(id, {
+    updateProductAny(id, {
       ...(affiliateUrl ? { affiliateUrl: String(affiliateUrl).trim() } : {}),
       ...(price !== undefined ? { price: Number(price) } : {}),
       ...(originalPrice !== undefined ? { originalPrice: Number(originalPrice) } : {}),
       ...(title ? { title: String(title).trim() } : {}),
     });
 
-    if (!updated) {
-      return NextResponse.json(
-        {
-          error:
-            'Product not found in Quick Add database. If this product was added in Google Sheets, please edit it directly in Google Sheet.',
-        },
-        { status: 404 }
-      );
-    }
-
-    return NextResponse.json({ success: true, product: updated });
+    return NextResponse.json({ success: true, message: 'Product updated successfully' });
   } catch (err) {
     return NextResponse.json({ error: 'Failed to update product', details: String(err) }, { status: 500 });
   }
@@ -84,17 +75,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Product ID is required' }, { status: 400 });
     }
 
-    const success = deleteCustomProduct(id);
-    if (!success) {
-      return NextResponse.json(
-        {
-          error:
-            'Could not delete from Quick Add database. If this was added via Google Sheet, change its status to "archived" in the Sheet.',
-        },
-        { status: 400 }
-      );
-    }
-
+    removeProductAny(id);
     return NextResponse.json({ success: true, message: 'Product deleted from website' });
   } catch (err) {
     return NextResponse.json({ error: 'Failed to delete product', details: String(err) }, { status: 500 });

@@ -6,6 +6,7 @@ import { MOCK_LOOKBOOKS, MOCK_PRODUCTS } from './mock-products';
 import { computeRelatedProducts } from './cross-sell';
 import { OperationsLogger } from './operations-logger';
 import { getCustomProducts } from './custom-products-store';
+import { applyProductOverrides } from './product-overrides';
 
 interface CacheEntry {
   products: Product[];
@@ -117,7 +118,7 @@ export class GoogleSheetsProductProvider implements IProductRepository {
       for (const p of base) {
         if (!combinedMap.has(p.id)) combinedMap.set(p.id, p);
       }
-      const dataset = Array.from(combinedMap.values());
+      const dataset = applyProductOverrides(Array.from(combinedMap.values()));
       GoogleSheetsProductProvider.lastSuccessfulSyncAt = new Date().toISOString();
       if (GoogleSheetsProductProvider.lastKnownGoodProducts && GoogleSheetsProductProvider.lastKnownGoodProducts.length > 0) {
         OperationsLogger.log(
@@ -177,7 +178,7 @@ export class GoogleSheetsProductProvider implements IProductRepository {
           combinedMap.set(p.id, p);
         }
       }
-      const normalizedProducts = Array.from(combinedMap.values());
+      const normalizedProducts = applyProductOverrides(Array.from(combinedMap.values()));
 
       if (normalizedProducts.length > 0) {
         // Update both cache and last-known-good dataset

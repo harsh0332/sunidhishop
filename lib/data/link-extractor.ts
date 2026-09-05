@@ -149,6 +149,47 @@ function detectCategory(text: string): ProductCategory {
   return 'fashion';
 }
 
+const KNOWN_BRANDS = [
+  'Tommy Hilfiger', 'Calvin Klein', 'Polo Ralph Lauren', 'Ralph Lauren',
+  'Marks & Spencer', 'Vero Moda', 'Jack & Jones', 'Under Armour', 'Louis Philippe',
+  'Van Heusen', 'Peter England', 'Allen Solly', 'Tokyo Talkies', 'Global Desi',
+  'Fabindia', 'Zara', 'H&M', 'Mango', 'Levis', "Levi's", 'Nike', 'Adidas',
+  'Puma', 'Inddus', 'Libas', 'Biba', 'Only', 'Forever 21', 'Skechers', 'Crocs',
+  'Aldo', 'Charles & Keith', 'Fossil', 'Casio', 'Titan', 'Nykaa', 'Lakme',
+  'Maybelline', 'Loreal', "L'Oreal", 'Minimalist', 'Plum', 'Dot & Key',
+  'Roadster', 'HRX', 'W', 'Aurelia', 'AND', 'Anouk', 'Soch', 'Sassafras',
+  'Berrylush', 'Street 9', 'Code', 'Melange', 'Kazo', 'Madame', 'Gant',
+  'Nautica', 'US Polo Assn', 'U.S. Polo Assn.', 'Arrow', 'Raymond', 'Superdry',
+  'American Eagle', 'Aeropostale', 'Pepe Jeans', 'Wrangler', 'Lee', 'Spykar',
+  'Flying Machine', 'Mufti', 'Bata', 'Woodland', 'Red Tape', 'Campus'
+];
+
+const ERROR_TITLES = [
+  'access denied',
+  '403 forbidden',
+  '404 not found',
+  'page not found',
+  'just a moment',
+  'attention required',
+  'robot check',
+  'security check',
+  'cloudflare',
+  'blocked',
+  'ajio direct',
+  'ajio.com',
+  'myntra.com',
+  'amazon.in',
+  'error',
+  'loading',
+  'untitled'
+];
+
+function isInvalidTitle(title: string): boolean {
+  if (!title || title.trim().length < 3) return true;
+  const t = title.toLowerCase().trim();
+  return ERROR_TITLES.some((err) => t === err || t.includes(err));
+}
+
 function cleanHtmlText(raw: string): string {
   return raw
     .replace(/&amp;/g, '&')
@@ -158,6 +199,78 @@ function cleanHtmlText(raw: string): string {
     .replace(/&gt;/g, '>')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+/**
+ * Intelligent URL Slug Parser: Extracts clean title, brand, and category
+ * directly from e-commerce URLs when server scraping is blocked by anti-bot CDN.
+ */
+function parseProductFromUrl(
+  targetUrl: string,
+  store: string,
+  originalAffiliateUrl: string
+): ExtractedProduct {
+  let resolvedUrl = targetUrl;
+  try {
+    const parsed = new URL(targetUrl);
+    // Check if there is a nested dl= or url= parameter (EarnKaro, Techtrack, etc.)
+    const dlParam = parsed.searchParams.get('dl') || parsed.searchParams.get('url');
+    if (dlParam) {
+      resolvedUrl = decodeURIComponent(dlParam);
+    }
+  } catch {}
+
+  let slug = '';
+  try {
+    const urlObj = new URL(resolvedUrl);
+    const pathParts = urlObj.pathname.split('/').filter(Boolean);
+
+    // Look for product slug segment (e.g. /tommy-hilfiger-women-striped-relaxed-fit-shirt/p/703093754_green)
+    const candidate = pathParts.find(
+      (p) => p.includes('-') && !p.startsWith('p') && p.length > 5 && !p.endsWith('.html')
+    );
+    slug = candidate || pathParts[pathParts.length - 1] || pathParts[0] || 'Curated Product';
+  } catch {
+    slug = 'Curated Product';
+  }
+
+  // Clean slug: remove trailing .html, /buy, or _color suffixes
+  slug = slug
+    .replace(/\.html$/i, '')
+    .replace(/\/buy$/i, '')
+    .replace(/_.*$/, '');
+
+  const words = slug.split(/[-_]/).filter(Boolean);
+  const formattedTitle = words
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join(' ');
+
+  // Detect brand using dictionary matching
+  let brand = store;
+  for (const b of KNOWN_BRANDS) {
+    const slugNorm = slug.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const brandNorm = b.toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (slugNorm.startsWith(brandNorm)) {
+      brand = b;
+      break;
+    }
+  }
+  if (brand === store && words.length >= 2) {
+    brand = words[0].charAt(0).toUpperCase() + words[0].slice(1);
+  }
+
+  const category = detectCategory(slug);
+
+  return {
+    title: formattedTitle || 'Curated Pick',
+    brand,
+    store,
+    category,
+    price: 0,
+    image: '',
+    description: `Curated ${formattedTitle} by ${brand}. Available at ${store}.`,
+    affiliateUrl: originalAffiliateUrl,
+  };
 }
 
 /**
@@ -181,7 +294,7 @@ export async function extractProductFromUrl(inputUrl: string): Promise<Extracted
         try {
           const parsed = JSON.parse(jsonStr);
           const pdp = parsed.pdpData;
-          if (pdp && pdp.name) {
+          if (pdp && pdp.name && !isInvalidTitle(pdp.name)) {
             let img =
               pdp.media?.albums?.[0]?.images?.[0]?.imageURL ||
               pdp.media?.albums?.[0]?.images?.[0]?.secure_url ||
@@ -208,7 +321,7 @@ export async function extractProductFromUrl(inputUrl: string): Promise<Extracted
             };
           }
         } catch {
-          // Fall through to generic meta tags
+          // Fall through
         }
       }
     }
@@ -222,27 +335,27 @@ export async function extractProductFromUrl(inputUrl: string): Promise<Extracted
           const parsed = JSON.parse(rawJson);
           const item = parsed['@graph'] ? parsed['@graph'].find((g: any) => g['@type'] === 'Product') : parsed;
           if (item && (item['@type'] === 'Product' || item.name)) {
-            const title = cleanHtmlText(item.name || '');
-            let img = Array.isArray(item.image) ? item.image[0] : item.image;
-            if (typeof img === 'object' && img?.url) img = img.url;
-            if (img && typeof img === 'string' && img.startsWith('http://')) {
-              img = img.replace('http://', 'https://');
-            }
+            const rawTitle = cleanHtmlText(item.name || '');
+            if (rawTitle && !isInvalidTitle(rawTitle)) {
+              let img = Array.isArray(item.image) ? item.image[0] : item.image;
+              if (typeof img === 'object' && img?.url) img = img.url;
+              if (img && typeof img === 'string' && img.startsWith('http://')) {
+                img = img.replace('http://', 'https://');
+              }
 
-            let price = 0;
-            if (item.offers) {
-              const offer = Array.isArray(item.offers) ? item.offers[0] : item.offers;
-              price = Number(offer.price || offer.lowPrice || 0);
-            }
+              let price = 0;
+              if (item.offers) {
+                const offer = Array.isArray(item.offers) ? item.offers[0] : item.offers;
+                price = Number(offer.price || offer.lowPrice || 0);
+              }
 
-            const brand = typeof item.brand === 'object' ? item.brand?.name : item.brand || resolvedStore;
+              const brand = typeof item.brand === 'object' ? item.brand?.name : item.brand || resolvedStore;
 
-            if (title) {
               return {
-                title,
+                title: rawTitle,
                 brand: cleanHtmlText(brand || resolvedStore),
                 store: resolvedStore,
-                category: detectCategory(`${title} ${finalUrl}`),
+                category: detectCategory(`${rawTitle} ${finalUrl}`),
                 price: price || 0,
                 image: typeof img === 'string' ? img : '',
                 description: item.description ? cleanHtmlText(item.description).slice(0, 160) : `Curated from ${resolvedStore}.`,
@@ -271,18 +384,22 @@ export async function extractProductFromUrl(inputUrl: string): Promise<Extracted
     );
 
     let title = ogTitleMatch ? cleanHtmlText(ogTitleMatch[1]) : '';
-    // Clean up title suffixes like "| Myntra" or "- Buy Online"
     title = title.split(/[|•–—]/)[0].trim();
 
-    let image = ogImageMatch ? ogImageMatch[1].trim() : '';
-    if (image.startsWith('http://')) {
-      image = image.replace('http://', 'https://');
-    }
+    // Check if title is valid and not an error/block like "Access Denied"
+    if (title && !isInvalidTitle(title)) {
+      let image = ogImageMatch ? ogImageMatch[1].trim() : '';
+      if (image.startsWith('http://')) {
+        image = image.replace('http://', 'https://');
+      }
+      // Filter out generic store logos
+      if (image.includes('ajio-store') || image.includes('default-og') || image.includes('store-logo')) {
+        image = '';
+      }
 
-    const price = ogPriceMatch ? parseFloat(ogPriceMatch[1]) : 0;
-    const desc = ogDescMatch ? cleanHtmlText(ogDescMatch[1]).slice(0, 160) : '';
+      const price = ogPriceMatch ? parseFloat(ogPriceMatch[1]) : 0;
+      const desc = ogDescMatch ? cleanHtmlText(ogDescMatch[1]).slice(0, 160) : '';
 
-    if (title) {
       return {
         title,
         brand: resolvedStore,
@@ -294,27 +411,11 @@ export async function extractProductFromUrl(inputUrl: string): Promise<Extracted
         affiliateUrl: cleanUrl,
       };
     }
+
+    // --- 4. Fallback to Deep URL Slug Parsing (for Ajio and protected stores) ---
+    return parseProductFromUrl(finalUrl || cleanUrl, resolvedStore, cleanUrl);
   } catch {
-    // If request failed, fallback to URL parsing
+    // If entire request failed, fallback to URL parsing
+    return parseProductFromUrl(cleanUrl, store, cleanUrl);
   }
-
-  // --- 4. Fallback URL parsing ---
-  const urlObj = new URL(cleanUrl);
-  const pathParts = urlObj.pathname.split('/').filter(Boolean);
-  const candidate = pathParts[pathParts.length - 1] || pathParts[pathParts.length - 2] || 'New Curated Pick';
-  const prettyTitle = candidate
-    .replace(/[-_]/g, ' ')
-    .replace(/\b\w/g, (c) => c.toUpperCase())
-    .slice(0, 60);
-
-  return {
-    title: prettyTitle,
-    brand: store,
-    store,
-    category: detectCategory(cleanUrl),
-    price: 0,
-    image: '',
-    description: `Curated pick from ${store}.`,
-    affiliateUrl: cleanUrl,
-  };
 }

@@ -492,9 +492,21 @@ export default function QuickAddProductPage() {
                     </div>
 
                     <div>
-                      <label className="block text-[11px] font-medium text-neutral-600 mb-1">
-                        Image Link (HTTPS)
-                      </label>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-[11px] font-medium text-neutral-600">
+                          Image Link (HTTPS)
+                        </label>
+                        {form.affiliateUrl && (
+                          <a
+                            href={form.affiliateUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[10px] font-medium text-blue-600 hover:underline flex items-center gap-0.5"
+                          >
+                            <span>Open {form.store || 'Store'} ↗</span>
+                          </a>
+                        )}
+                      </div>
                       <input
                         type="url"
                         value={form.image}
@@ -502,6 +514,11 @@ export default function QuickAddProductPage() {
                         placeholder="https://..."
                         className="w-full text-xs bg-[#FAF8F5] border border-stone-200 rounded-lg p-2.5 text-neutral-800 font-mono"
                       />
+                      {!form.image && (
+                        <p className="text-[10px] text-neutral-500 mt-1.5 leading-relaxed bg-stone-50 border border-stone-200/80 rounded-lg p-2">
+                          💡 <strong>Tip for {form.store || 'Store'}</strong>: Photo auto-load na hone par store page par photo pe Right-Click karke <strong>&apos;Copy Image Address&apos;</strong> karein aur yahan paste kar dein!
+                        </p>
+                      )}
                     </div>
                   </div>
 
@@ -530,7 +547,7 @@ export default function QuickAddProductPage() {
                           required
                           value={form.price}
                           onChange={(e) => setForm({ ...form, price: e.target.value })}
-                          placeholder="1720"
+                          placeholder="e.g. 1999"
                           className="w-full text-sm bg-[#FAF8F5] border border-stone-200 rounded-xl p-3 text-neutral-900 font-semibold"
                         />
                       </div>
@@ -543,7 +560,7 @@ export default function QuickAddProductPage() {
                           type="number"
                           value={form.originalPrice}
                           onChange={(e) => setForm({ ...form, originalPrice: e.target.value })}
-                          placeholder="4999"
+                          placeholder="e.g. 4999"
                           className="w-full text-sm bg-[#FAF8F5] border border-stone-200 rounded-xl p-3 text-neutral-900"
                         />
                       </div>

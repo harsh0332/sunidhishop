@@ -131,7 +131,7 @@ export const Header: React.FC<HeaderProps> = ({ products = [] }) => {
                 className="inline-flex items-center gap-1.5 text-xs font-medium text-neutral-700 hover:text-neutral-950"
               >
                 <Instagram className="w-4 h-4" />
-                <span>Follow @sunidhi_singh029 on Instagram</span>
+                <span>Sunidhi on Instagram</span>
               </a>
             </div>
           </div>

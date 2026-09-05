@@ -6,7 +6,6 @@ import { CreatorHero } from './CreatorHero';
 import { CategoryNav } from './CategoryNav';
 import { ProductGrid } from '../product/ProductGrid';
 import { SeenOnSunidhi } from './SeenOnSunidhi';
-import { AffiliateDisclosureBanner } from './AffiliateDisclosureBanner';
 import { RecentlyViewed } from '../product/RecentlyViewed';
 import { analytics } from '@/lib/analytics';
 import { MerchandisingContext } from '@/lib/contextual-merchandising';
@@ -135,10 +134,7 @@ export const StorefrontView: React.FC<StorefrontViewProps> = ({
       {/* 2. Creator Hero Section (Standard storefront hero) */}
       {!isContextActive && <CreatorHero />}
 
-      {/* 3. Conspicuous In-Feed Affiliate Disclosure Banner */}
-      <AffiliateDisclosureBanner />
-
-      {/* 4. Category Discovery Pills (Sticky Navigation) */}
+      {/* 3. Category Discovery Pills (Sticky Navigation) */}
       <CategoryNav
         categories={categories}
         activeCategory={activeCategory}

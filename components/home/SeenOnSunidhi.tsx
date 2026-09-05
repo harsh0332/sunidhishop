@@ -38,7 +38,7 @@ export const SeenOnSunidhi: React.FC<SeenOnSunidhiProps> = ({ lookbooks }) => {
           rel="noopener noreferrer"
           className="text-xs font-medium text-neutral-700 hover:text-neutral-900 underline underline-offset-4 mt-2 sm:mt-0 inline-flex items-center gap-1"
         >
-          <span>Watch all on @sunidhi_singh029</span>
+          <span>Watch on Instagram</span>
           <ExternalLink className="w-3 h-3" />
         </a>
       </div>

@@ -25,7 +25,7 @@ export const Footer: React.FC = () => {
               className="inline-flex items-center gap-1.5 text-xs font-semibold text-neutral-800 hover:text-neutral-950 transition-colors"
             >
               <Instagram className="w-4 h-4" />
-              <span>@sunidhi_singh029 on Instagram</span>
+              <span>Sunidhi on Instagram</span>
             </a>
           </div>
 

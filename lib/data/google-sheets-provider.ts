@@ -1,3 +1,5 @@
+import fs from 'fs';
+import path from 'path';
 import { google } from 'googleapis';
 import { CategorySummary, LookbookItem, Product, ProductCategory, ProductFilterOptions } from '@/types/product';
 import { IProductRepository } from './product-repository.interface';
@@ -11,6 +13,37 @@ import { applyProductOverrides } from './product-overrides';
 interface CacheEntry {
   products: Product[];
   timestamp: number;
+}
+
+const DATA_DIR = path.join(process.cwd(), 'data');
+const DISK_CACHE_FILE = path.join(DATA_DIR, 'sheet-cache.json');
+
+function readDiskCache(): Product[] | null {
+  try {
+    if (fs.existsSync(DISK_CACHE_FILE)) {
+      const raw = fs.readFileSync(DISK_CACHE_FILE, 'utf-8');
+      if (raw.trim()) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[GoogleSheetsProductProvider] Could not read disk cache:', err);
+  }
+  return null;
+}
+
+function writeDiskCache(products: Product[]): void {
+  try {
+    if (!fs.existsSync(DATA_DIR)) {
+      fs.mkdirSync(DATA_DIR, { recursive: true });
+    }
+    fs.writeFileSync(DISK_CACHE_FILE, JSON.stringify(products, null, 2), 'utf-8');
+  } catch (err) {
+    console.warn('[GoogleSheetsProductProvider] Could not write disk cache:', err);
+  }
 }
 
 export class GoogleSheetsProductProvider implements IProductRepository {
@@ -27,8 +60,44 @@ export class GoogleSheetsProductProvider implements IProductRepository {
   private static lastCacheRefreshAt: string | undefined = undefined;
   // In-flight sync promise deduplication lock (Requirement #53)
   private static activeFetchPromise: Promise<Product[]> | null = null;
+  private static isInitializedFromDisk = false;
+
+  private static ensureDiskCacheLoaded(): void {
+    if (GoogleSheetsProductProvider.isInitializedFromDisk) return;
+    GoogleSheetsProductProvider.isInitializedFromDisk = true;
+
+    const fromDisk = readDiskCache();
+    if (fromDisk && fromDisk.length > 0) {
+      GoogleSheetsProductProvider.lastKnownGoodProducts = fromDisk;
+      GoogleSheetsProductProvider.cache = {
+        products: fromDisk,
+        timestamp: Date.now(),
+      };
+      GoogleSheetsProductProvider.lastSuccessfulSyncAt = new Date().toISOString();
+      return;
+    }
+
+    // Default fast seed combining custom products + mock catalog
+    let custom: Product[] = [];
+    try {
+      custom = getCustomProducts();
+    } catch {}
+    const combinedMap = new Map<string, Product>();
+    for (const p of custom) combinedMap.set(p.id, p);
+    for (const p of MOCK_PRODUCTS) {
+      if (!combinedMap.has(p.id)) combinedMap.set(p.id, p);
+    }
+    const initial = applyProductOverrides(Array.from(combinedMap.values()));
+    GoogleSheetsProductProvider.lastKnownGoodProducts = initial;
+    GoogleSheetsProductProvider.cache = {
+      products: initial,
+      timestamp: Date.now(),
+    };
+    writeDiskCache(initial);
+  }
 
   constructor() {
+    GoogleSheetsProductProvider.ensureDiskCacheLoaded();
     this.sheetId = process.env.GOOGLE_SHEET_ID || '';
     this.sheetName = process.env.GOOGLE_SHEET_NAME || 'Products';
     this.serviceAccountEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
@@ -47,6 +116,28 @@ export class GoogleSheetsProductProvider implements IProductRepository {
     GoogleSheetsProductProvider.cache = null;
     GoogleSheetsProductProvider.activeFetchPromise = null;
     GoogleSheetsProductProvider.lastCacheRefreshAt = new Date().toISOString();
+
+    // Immediately update memory and disk cache with latest custom products + overrides
+    try {
+      let customProducts: Product[] = [];
+      try {
+        customProducts = getCustomProducts();
+      } catch {}
+      const base = GoogleSheetsProductProvider.lastKnownGoodProducts || MOCK_PRODUCTS;
+      const combinedMap = new Map<string, Product>();
+      for (const p of customProducts) combinedMap.set(p.id, p);
+      for (const p of base) {
+        if (!combinedMap.has(p.id)) combinedMap.set(p.id, p);
+      }
+      const dataset = applyProductOverrides(Array.from(combinedMap.values()));
+      GoogleSheetsProductProvider.cache = {
+        products: dataset,
+        timestamp: Date.now(),
+      };
+      GoogleSheetsProductProvider.lastKnownGoodProducts = dataset;
+      writeDiskCache(dataset);
+    } catch {}
+
     OperationsLogger.log('cache_refresh', 'success', 'Product cache invalidated manually');
     // eslint-disable-next-line no-console
     console.log('[GoogleSheetsProductProvider] Cache manually invalidated.');
@@ -72,9 +163,10 @@ export class GoogleSheetsProductProvider implements IProductRepository {
   }
 
   /**
-   * Retrieves products with caching, in-flight concurrency deduplication, and fault-tolerant fallback
+   * Retrieves products with caching, stale-while-revalidate, in-flight concurrency deduplication, and fault-tolerant fallback
    */
   private async fetchAllProductsFromSheet(): Promise<Product[]> {
+    GoogleSheetsProductProvider.ensureDiskCacheLoaded();
     const now = Date.now();
 
     // 1. Return valid cache if still fresh
@@ -85,12 +177,33 @@ export class GoogleSheetsProductProvider implements IProductRepository {
       return GoogleSheetsProductProvider.cache.products;
     }
 
-    // 2. Concurrency Lock: If a sync is already in flight, await that single promise (Requirement #53)
+    // 2. Stale-While-Revalidate: Return existing cache or disk products IMMEDIATELY (< 1ms!)
+    // and revalidate asynchronously in the background so visitors and redirects NEVER wait for Google Sheets!
+    const available =
+      GoogleSheetsProductProvider.cache?.products ||
+      GoogleSheetsProductProvider.lastKnownGoodProducts;
+
+    if (available && available.length > 0) {
+      if (!GoogleSheetsProductProvider.activeFetchPromise) {
+        GoogleSheetsProductProvider.activeFetchPromise = this.performSheetSync(now)
+          .catch((err) => {
+            // eslint-disable-next-line no-console
+            console.error('[GoogleSheetsProductProvider] Background sync error:', err);
+            return available;
+          })
+          .finally(() => {
+            GoogleSheetsProductProvider.activeFetchPromise = null;
+          });
+      }
+      return available;
+    }
+
+    // 3. Concurrency Lock: If a sync is already in flight, await that single promise (Requirement #53)
     if (GoogleSheetsProductProvider.activeFetchPromise) {
       return GoogleSheetsProductProvider.activeFetchPromise;
     }
 
-    // 3. Initiate single synchronized fetch
+    // 4. Initiate single synchronized fetch (only if no cache or disk data exists)
     GoogleSheetsProductProvider.activeFetchPromise = (async () => {
       try {
         return await this.performSheetSync(now);
@@ -188,6 +301,7 @@ export class GoogleSheetsProductProvider implements IProductRepository {
         };
         GoogleSheetsProductProvider.lastKnownGoodProducts = normalizedProducts;
         GoogleSheetsProductProvider.lastSuccessfulSyncAt = new Date().toISOString();
+        writeDiskCache(normalizedProducts);
 
         OperationsLogger.log(
           'sheet_sync',
@@ -259,15 +373,25 @@ export class GoogleSheetsProductProvider implements IProductRepository {
 
   /**
    * Fetch using Google Sheets CSV export (when spreadsheet has link-sharing enabled)
+   * Protected with 4.5-second timeout so remote stalls never hang the user's connection.
    */
   private async fetchViaPublicCsvExport(): Promise<Record<string, unknown>[]> {
     const csvUrl = `https://docs.google.com/spreadsheets/d/${this.sheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(
       this.sheetName
     )}`;
 
-    const res = await fetch(csvUrl, {
-      next: { revalidate: this.cacheTtlMs / 1000 },
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 4500);
+
+    let res: Response;
+    try {
+      res = await fetch(csvUrl, {
+        signal: controller.signal,
+        next: { revalidate: this.cacheTtlMs / 1000 },
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
 
     if (!res.ok) {
       throw new Error(`Failed to fetch Google Sheet CSV: ${res.status} ${res.statusText}`);
@@ -430,6 +554,16 @@ export class GoogleSheetsProductProvider implements IProductRepository {
   }
 
   async getProductBySlug(slug: string): Promise<Product | null> {
+    // 1. Ultra-fast path: Check custom products directly (< 0.2ms)
+    try {
+      const customProducts = getCustomProducts();
+      const customMatch = customProducts.find(p => p.slug === slug);
+      if (customMatch && customMatch.status === 'active') {
+        const overridden = applyProductOverrides([customMatch]);
+        if (overridden.length > 0) return overridden[0];
+      }
+    } catch {}
+
     const all = await this.fetchAllProductsFromSheet();
     const now = Date.now();
 
@@ -453,6 +587,15 @@ export class GoogleSheetsProductProvider implements IProductRepository {
   }
 
   async getProductById(id: string): Promise<Product | null> {
+    try {
+      const customProducts = getCustomProducts();
+      const customMatch = customProducts.find(p => p.id === id);
+      if (customMatch && customMatch.status === 'active') {
+        const overridden = applyProductOverrides([customMatch]);
+        if (overridden.length > 0) return overridden[0];
+      }
+    } catch {}
+
     const all = await this.fetchAllProductsFromSheet();
     const product = all.find(p => p.id === id && p.status === 'active');
     return product || null;
@@ -526,6 +669,15 @@ export class GoogleSheetsProductProvider implements IProductRepository {
    * Used strictly for /admin/preview/product/[slug].
    */
   async getProductBySlugAdmin(slug: string): Promise<Product | null> {
+    try {
+      const customProducts = getCustomProducts();
+      const customMatch = customProducts.find(p => p.slug === slug);
+      if (customMatch) {
+        const overridden = applyProductOverrides([customMatch]);
+        if (overridden.length > 0) return overridden[0];
+      }
+    } catch {}
+
     const all = await this.fetchAllProductsFromSheet();
     const product = all.find(p => p.slug === slug);
     return product || null;

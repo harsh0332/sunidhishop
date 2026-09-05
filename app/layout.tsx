@@ -78,6 +78,12 @@ export default async function RootLayout({
 
   return (
     <html lang="en" className="scroll-smooth">
+      <head>
+        <link rel="preconnect" href="https://assets.myntassets.com" crossOrigin="anonymous" />
+        <link rel="preconnect" href="https://images.unsplash.com" crossOrigin="anonymous" />
+        <link rel="dns-prefetch" href="https://assets.myntassets.com" />
+        <link rel="dns-prefetch" href="https://images.unsplash.com" />
+      </head>
       <body className="min-h-screen flex flex-col font-sans bg-[#FAF9F6] text-neutral-900 antialiased selection:bg-neutral-900 selection:text-white">
         <Header products={products} />
         <main className="flex-grow">{children}</main>

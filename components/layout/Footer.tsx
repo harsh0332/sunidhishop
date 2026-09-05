@@ -19,13 +19,13 @@ export const Footer: React.FC = () => {
               A curated destination of fashion, beauty, and lifestyle essentials personally loved and styled by creator Sunidhi.
             </p>
             <a
-              href="https://instagram.com/sunidhi"
+              href="https://instagram.com/sunidhi_singh029"
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1.5 text-xs font-semibold text-neutral-800 hover:text-neutral-950 transition-colors"
             >
               <Instagram className="w-4 h-4" />
-              <span>@sunidhi on Instagram</span>
+              <span>@sunidhi_singh029 on Instagram</span>
             </a>
           </div>
 
@@ -47,7 +47,7 @@ export const Footer: React.FC = () => {
                   </Link>
                 </li>
                 <li>
-                  <a href="https://instagram.com/sunidhi" target="_blank" rel="noopener noreferrer" className="hover:text-neutral-900 transition-colors">
+                  <a href="https://instagram.com/sunidhi_singh029" target="_blank" rel="noopener noreferrer" className="hover:text-neutral-900 transition-colors">
                     Instagram Reels
                   </a>
                 </li>
@@ -97,13 +97,19 @@ export const Footer: React.FC = () => {
           </div>
         </div>
 
-        {/* Affiliate Disclosure Compliance Box */}
-        <div className="pt-6 border-t border-stone-200/60 flex flex-col md:flex-row items-center justify-between gap-4 text-[11px] text-neutral-400">
-          <p className="max-w-2xl leading-relaxed text-center md:text-left">
-            <strong className="text-neutral-600 font-medium">Affiliate Disclosure:</strong> Sunidhi.shop is an editorial creator storefront. When you click outbound product links and make a purchase from the original retailer, Sunidhi may earn an affiliate commission at zero additional cost to you. Orders and customer service are handled entirely by the merchant.
+        {/* Creator Transparency Compliance Box */}
+        <div className="pt-6 border-t border-stone-200/60 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 text-[11px] text-neutral-500">
+          <p className="max-w-2xl leading-relaxed text-left">
+            <span className="font-semibold text-neutral-700">Creator Transparency:</span> Some links on Sunidhi.shop are affiliate links. When you shop through them, Sunidhi may earn a small commission from the merchant at no extra cost to you. Every single pick is personally selected and loved.{' '}
+            <Link
+              href="/disclosure"
+              className="text-neutral-700 underline underline-offset-2 hover:text-neutral-950 transition-colors"
+            >
+              Read full disclosure &rarr;
+            </Link>
           </p>
 
-          <p className="shrink-0 text-center">
+          <p className="shrink-0 text-left md:text-right text-[10px] text-neutral-400">
             &copy; {new Date().getFullYear()} SUNIDHI. Curated with care.
           </p>
         </div>

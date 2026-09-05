@@ -42,7 +42,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
     author: {
       '@type': 'Person',
       name: 'Sunidhi',
-      url: 'https://instagram.com/sunidhi',
+      url: 'https://instagram.com/sunidhi_singh029',
       jobTitle: 'Fashion & Lifestyle Content Creator',
     },
   };

@@ -12,8 +12,8 @@ export const SITE_CONFIG = {
     'Curated fashion, beauty, and lifestyle recommendations by creator Sunidhi. Discover the latest picks and shop them directly from official retailers.',
   creator: {
     name: 'Sunidhi',
-    instagram: 'https://instagram.com/sunidhi',
-    instagramHandle: '@sunidhi',
+    instagram: 'https://instagram.com/sunidhi_singh029',
+    instagramHandle: '@sunidhi_singh029',
   },
   defaultOgImage: 'https://images.unsplash.com/photo-1490481651871-ab68de25d43d?w=1200&h=630&q=85',
   themeColor: '#FAF9F6',

@@ -74,7 +74,7 @@ export const Header: React.FC<HeaderProps> = ({ products = [] }) => {
 
             {/* Instagram Link (Desktop) */}
             <a
-              href="https://instagram.com/sunidhi"
+              href="https://instagram.com/sunidhi_singh029"
               target="_blank"
               rel="noopener noreferrer"
               className="hidden sm:flex items-center gap-1 p-2 rounded-full text-neutral-600 hover:text-neutral-900 hover:bg-stone-200/60 transition-colors"
@@ -125,13 +125,13 @@ export const Header: React.FC<HeaderProps> = ({ products = [] }) => {
             </Link>
             <div className="pt-2 border-t border-stone-200/60 flex items-center justify-between">
               <a
-                href="https://instagram.com/sunidhi"
+                href="https://instagram.com/sunidhi_singh029"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1.5 text-xs font-medium text-neutral-700 hover:text-neutral-950"
               >
                 <Instagram className="w-4 h-4" />
-                <span>Follow @sunidhi on Instagram</span>
+                <span>Follow @sunidhi_singh029 on Instagram</span>
               </a>
             </div>
           </div>

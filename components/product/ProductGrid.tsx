@@ -107,12 +107,12 @@ export const ProductGrid: React.FC<ProductGridProps> = ({
             </button>
           ) : (
             <a
-              href="https://instagram.com/sunidhi"
+              href="https://instagram.com/sunidhi_singh029"
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center justify-center px-4 py-2 text-xs font-medium rounded-lg bg-neutral-900 text-white hover:bg-neutral-800 transition-colors"
             >
-              Follow @sunidhi on Instagram
+              Follow @sunidhi_singh029 on Instagram
             </a>
           )}
         </div>

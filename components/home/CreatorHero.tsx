@@ -57,13 +57,13 @@ export const CreatorHero: React.FC = () => {
           </a>
 
           <a
-            href="https://instagram.com/sunidhi"
+            href="https://instagram.com/sunidhi_singh029"
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-full bg-white border border-stone-200 text-neutral-700 text-xs sm:text-sm font-medium hover:bg-stone-50 hover:text-neutral-900 transition-all shadow-xs"
           >
             <Instagram className="w-3.5 h-3.5 text-neutral-500" />
-            <span>@sunidhi</span>
+            <span>@sunidhi_singh029</span>
           </a>
         </div>
       </div>

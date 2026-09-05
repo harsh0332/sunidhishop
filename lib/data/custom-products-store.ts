@@ -84,6 +84,28 @@ export function saveCustomProduct(productData: Partial<Product> & { title: strin
   return product;
 }
 
+export function updateCustomProduct(id: string, updates: Partial<Product>): Product | null {
+  try {
+    ensureDataDir();
+    const existing = getCustomProducts();
+    const idx = existing.findIndex((p) => p.id === id);
+    if (idx === -1) return null;
+
+    const updatedProduct: Product = {
+      ...existing[idx],
+      ...updates,
+      updatedAt: new Date().toISOString(),
+    };
+    existing[idx] = updatedProduct;
+    fs.writeFileSync(FILE_PATH, JSON.stringify(existing, null, 2), 'utf-8');
+    GoogleSheetsProductProvider.invalidateCache();
+    return updatedProduct;
+  } catch (err) {
+    console.error('[CustomProductsStore] Failed to update custom product:', err);
+    return null;
+  }
+}
+
 export function deleteCustomProduct(id: string): boolean {
   try {
     ensureDataDir();

@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180" width="180" height="180">
+  <rect width="180" height="180" rx="40" fill="#171717"/>
+  <text 
+    x="50%" 
+    y="56%" 
+    dominant-baseline="middle" 
+    text-anchor="middle" 
+    fill="#FAF9F6" 
+    font-family="Georgia, 'Times New Roman', serif" 
+    font-size="116" 
+    font-style="italic" 
+    font-weight="600"
+    letter-spacing="-3"
+  >S</text>
+  <circle cx="128" cy="64" r="7" fill="#D4AF37"/>
+</svg>

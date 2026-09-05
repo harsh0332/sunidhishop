@@ -5,6 +5,7 @@ import { deduplicateAndSanitizeProducts } from './product-validator';
 import { MOCK_LOOKBOOKS, MOCK_PRODUCTS } from './mock-products';
 import { computeRelatedProducts } from './cross-sell';
 import { OperationsLogger } from './operations-logger';
+import { getCustomProducts } from './custom-products-store';
 
 interface CacheEntry {
   products: Product[];
@@ -105,20 +106,30 @@ export class GoogleSheetsProductProvider implements IProductRepository {
    */
   private async performSheetSync(now: number): Promise<Product[]> {
     if (!this.sheetId) {
-      // If GOOGLE_SHEET_ID is missing, use default mock dataset (or last-known-good if present)
-      const dataset = GoogleSheetsProductProvider.lastKnownGoodProducts || MOCK_PRODUCTS;
+      // If GOOGLE_SHEET_ID is missing, use default mock dataset merged with custom products
+      const base = GoogleSheetsProductProvider.lastKnownGoodProducts || MOCK_PRODUCTS;
+      let customProducts: Product[] = [];
+      try {
+        customProducts = getCustomProducts();
+      } catch {}
+      const combinedMap = new Map<string, Product>();
+      for (const p of customProducts) combinedMap.set(p.id, p);
+      for (const p of base) {
+        if (!combinedMap.has(p.id)) combinedMap.set(p.id, p);
+      }
+      const dataset = Array.from(combinedMap.values());
       GoogleSheetsProductProvider.lastSuccessfulSyncAt = new Date().toISOString();
       if (GoogleSheetsProductProvider.lastKnownGoodProducts && GoogleSheetsProductProvider.lastKnownGoodProducts.length > 0) {
         OperationsLogger.log(
           'fallback_activated',
           'warning',
-          `No sheet ID configured. Retaining ${GoogleSheetsProductProvider.lastKnownGoodProducts.length} last-known-good products.`
+          `No sheet ID configured. Retaining ${dataset.length} products.`
         );
       } else {
         OperationsLogger.log(
           'sheet_sync',
           'success',
-          'No sheet ID configured. Serving local seed catalog.'
+          `No sheet ID configured. Serving local catalog (${dataset.length} products).`
         );
       }
       return dataset;
@@ -148,8 +159,25 @@ export class GoogleSheetsProductProvider implements IProductRepository {
         }
       }
 
-      // 2. Validate, deduplicate, and normalize all rows
-      const normalizedProducts = deduplicateAndSanitizeProducts(rawRows);
+      // 2. Validate, deduplicate, and normalize all rows from Google Sheet
+      const sheetProducts = deduplicateAndSanitizeProducts(rawRows);
+
+      // 3. Merge custom products added directly via Quick Add
+      let customProducts: Product[] = [];
+      try {
+        customProducts = getCustomProducts();
+      } catch {
+        // Safe fallback
+      }
+
+      const combinedMap = new Map<string, Product>();
+      for (const p of customProducts) combinedMap.set(p.id, p);
+      for (const p of sheetProducts) {
+        if (!combinedMap.has(p.id)) {
+          combinedMap.set(p.id, p);
+        }
+      }
+      const normalizedProducts = Array.from(combinedMap.values());
 
       if (normalizedProducts.length > 0) {
         // Update both cache and last-known-good dataset
@@ -163,7 +191,7 @@ export class GoogleSheetsProductProvider implements IProductRepository {
         OperationsLogger.log(
           'sheet_sync',
           'success',
-          `Successfully synced and normalized ${normalizedProducts.length} products from Google Sheets`
+          `Successfully synced and normalized ${normalizedProducts.length} products (${sheetProducts.length} from Sheet, ${customProducts.length} added via Admin)`
         );
 
         return normalizedProducts;

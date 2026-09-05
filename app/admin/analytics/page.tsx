@@ -275,6 +275,12 @@ export default function AdminAnalyticsDashboard() {
               >
                 System Status
               </a>
+              <a
+                href="/admin/add-product"
+                className="px-2.5 py-1 rounded-lg bg-amber-50 border border-amber-300 text-amber-900 hover:bg-amber-100 font-medium transition-colors"
+              >
+                + Add via Link
+              </a>
             </div>
           </div>
 

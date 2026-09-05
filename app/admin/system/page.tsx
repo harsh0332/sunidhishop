@@ -141,6 +141,13 @@ export default function SystemStatusPage() {
               <span>System Status</span>
             </a>
 
+            <a
+              href="/admin/add-product"
+              className="px-3 py-1.5 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 hover:bg-amber-100 font-medium flex items-center gap-1.5 transition-all shadow-xs"
+            >
+              <span>+ Quick Add Product</span>
+            </a>
+
             <button
               onClick={() => fetchStatus(true)}
               disabled={isRefreshing}
